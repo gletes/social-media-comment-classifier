@@ -7,7 +7,7 @@ import sys
 
 # Adjust based on actual file location (Just in case if it reads onto the `src/` folder or the other)
 try:
-    from data_preprocessing import DataPreprocessor 
+    from .data_preprocessing import DataPreprocessor 
 except ImportError:
     # Fallback for deployment environments if structure is different
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -86,4 +86,5 @@ class TwoStageModelPipeline:
             return "Non-Negatif"
         else:
             # --- Stage 2: BERT (Negatif to Sub Categories) ---
+
             return self.stage2_bert_predict(stemmed_text)
