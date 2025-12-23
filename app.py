@@ -14,7 +14,6 @@ if src_dir not in sys.path:
 try:
     # Import the correct class name (TwoStageModelPipeline)
     from src.model_pipeline import TwoStageModelPipeline 
-    from src.data_preprocessing import DataPreprocessor
 except ImportError as e:
     st.error(f"Import Error: Could not load the TwoStageModelPipeline class. Check dependencies inside model_pipeline.py. Original Error: {e}")
     st.stop()
@@ -114,9 +113,7 @@ def classify_text():
 
     if input_text:
         with st.spinner('Running two-stage prediction...'):
-            preprocessor = DataPreprocessor()
-            processed_text = preprocessor.full_process(input_text)
-            final_label = pipeline.predict(processed_text) 
+            final_label = pipeline.predict(input_text) 
         
         st.session_state.input_text = input_text
         st.session_state.final_result = final_label
@@ -313,4 +310,5 @@ if st.session_state.get('final_result'):
             result_label='NEGATIF', 
             sub_label=final_result,
             message=input_text_val 
+
         )
