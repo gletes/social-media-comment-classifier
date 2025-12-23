@@ -8,11 +8,12 @@ import pandas as pd
 # --- FIX: Ensure NLTK resources are downloaded and available immediately ---
 try:
     nltk.data.find('tokenizers/punkt')
-except nltk.downloader.DownloadError:
+except LookupError:
     nltk.download('punkt', quiet=True)
+
 try:
     nltk.data.find('corpora/stopwords')
-except nltk.downloader.DownloadError:
+except LookupError:
     nltk.download('stopwords', quiet=True)
 # --------------------------------------------------------------------------
 
@@ -91,4 +92,5 @@ class DataPreprocessor:
     def flag_label(self, final_label):
         """Converts the final label to the binary flag for Stage 1 (RF)."""
         return '0' if final_label == "Non-Negatif" else '1'
+
         
