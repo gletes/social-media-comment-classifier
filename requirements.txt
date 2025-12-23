@@ -7,3 +7,4 @@ Sastrawi>=1.0.1
 torch>=2.0,<2.3
 transformers>=4.36,<5.0
 tokenizers>=0.14,<0.16
+gdown
