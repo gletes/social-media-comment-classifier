@@ -3,6 +3,7 @@ import torch
 import os
 import sys
 import pickle
+import gdown
 
 # --- 1. Path Setup ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +15,7 @@ if src_dir not in sys.path:
 try:
     # Import the correct class name (TwoStageModelPipeline)
     from src.model_pipeline import TwoStageModelPipeline 
+    from src.data_preprocessing import DataPreprocessor
 except ImportError as e:
     st.error(f"Import Error: Could not load the TwoStageModelPipeline class. Check dependencies inside model_pipeline.py. Original Error: {e}")
     st.stop()
@@ -22,8 +24,11 @@ except ImportError as e:
 MODEL_DIR = os.path.join(current_dir, 'models')
 RF_MODEL_PATH = os.path.join(MODEL_DIR, 'rf_model.pkl')
 TFIDF_VECTORIZER_PATH = os.path.join(MODEL_DIR, 'tfidf_sastrawi.pkl')
-BERT_WEIGHTS_PATH = os.path.join(MODEL_DIR, 'bert_model.pkl') # Must be .pkl
+BERT_WEIGHTS_PATH = os.path.join(MODEL_DIR, 'bert_model.pkl')
+
 BERT_BASE_NAME = "indobenchmark/indobert-base-p2" 
+RF_MODEL_GDRIVE_ID = "1YNwFIoH_0URA5aOoXfqV4w4-MBz6uYec"
+BERT_MODEL_GDRIVE_ID = "1VKfltjwbs_-igRTIXoAxmnvYrJAJj0GU"
 
 # 🧠 Define the multi-class labels (Index to Name)
 LABEL_MAP = {
@@ -55,14 +60,30 @@ class CPU_Unpickler(pickle.Unpickler):
             return lambda *args: torch.load(*args, map_location='cpu')
         else:
             return super().find_class(module, name)
-# -----------------------------------------------------------
+
+def download_model(file_path: str, gdrive_id: str):
+    if os.path.exists(file_path):
+        return  # already cached
+
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    url = f"https://drive.google.com/uc?id={gdrive_id}"
+    with st.spinner(f"Downloading {os.path.basename(file_path)}..."):
+        gdown.download(url, file_path, quiet=False)
+
+    if not os.path.exists(file_path):
+        st.error(f"Failed to download {os.path.basename(file_path)}")
+        st.stop()
 
 
 # --- 3. Model Loading (Cached) ---
 @st.cache_resource
 def load_full_pipeline():
     """Loads all models and initializes the pipeline class."""
-    
+    # downloads only once
+    download_model(RF_MODEL_PATH, RF_MODEL_GDRIVE_ID)
+    download_model(BERT_WEIGHTS_PATH, BERT_MODEL_GDRIVE_ID)
+
     if not os.path.exists(RF_MODEL_PATH) or not os.path.exists(TFIDF_VECTORIZER_PATH) or not os.path.exists(BERT_WEIGHTS_PATH):
         st.error(f"FATAL ERROR: One or more model files not found in '{MODEL_DIR}'.")
         st.info(f"Check file paths: RF={os.path.exists(RF_MODEL_PATH)}, TFIDF={os.path.exists(TFIDF_VECTORIZER_PATH)}, BERT={os.path.exists(BERT_WEIGHTS_PATH)}")
@@ -113,7 +134,9 @@ def classify_text():
 
     if input_text:
         with st.spinner('Running two-stage prediction...'):
-            final_label = pipeline.predict(input_text) 
+            preprocessor = DataPreprocessor()
+            processed_text = preprocessor.full_process(input_text)
+            final_label = pipeline.predict(processed_text) 
         
         st.session_state.input_text = input_text
         st.session_state.final_result = final_label
@@ -310,5 +333,4 @@ if st.session_state.get('final_result'):
             result_label='NEGATIF', 
             sub_label=final_result,
             message=input_text_val 
-
         )
