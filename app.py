@@ -66,16 +66,8 @@ def download_model(file_path: str, gdrive_id: str):
 def load_full_pipeline():
     download_model(RF_MODEL_PATH, RF_MODEL_GDRIVE_ID)
     download_model(BERT_WEIGHTS_PATH, BERT_MODEL_GDRIVE_ID)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    missing = {
-        "RF": os.path.exists(RF_MODEL_PATH),
-        "TFIDF": os.path.exists(TFIDF_VECTORIZER_PATH),
-        "BERT": os.path.exists(BERT_WEIGHTS_PATH)
-    }
 
-    if not all(missing.values()):
-        st.error(f"FATAL ERROR: Missing models: {missing}")
-        st.stop()
+    device = torch.device("cpu") 
 
     try:
         pipeline = TwoStageModelPipeline(
@@ -85,16 +77,21 @@ def load_full_pipeline():
             label_map=LABEL_NAME_MAP
         )
 
-        pipeline.bert_model.load_state_dict(
-            torch.load(BERT_WEIGHTS_PATH, map_location=device)
+        state_dict = torch.load(
+            BERT_WEIGHTS_PATH,
+            map_location=torch.device("cpu")
         )
+
+        pipeline.bert_model.load_state_dict(state_dict)
+        pipeline.bert_model.to(device)
         pipeline.bert_model.eval()
-        print(next(pipeline.bert_model.parameters()).device)
+
         return pipeline
 
     except Exception as e:
         st.error(f"Model loading failed: {e}")
         st.stop()
+
 
 try:
     pipeline = load_full_pipeline()
@@ -296,6 +293,7 @@ st.markdown("""
 
 # --- Prediction Button ---
 st.button("Proses Kalimat", type="primary", on_click=classify_text)
+
 st.markdown("---")
 
 # --- Result Display Logic ---
