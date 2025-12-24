@@ -46,21 +46,6 @@ WARNING_MSG = {
     "Negatif Lainnya" : "Pesan ini mengandung **konten negatif**. Walaupun belum terklasifikasi spesifik, pesan ini berpotensi melanggar peraturan pidana. Harap bijak berkomentar!"
 }
 
-
-# --- CRITICAL FIX: Custom unpickler for CUDA compatibility ---
-class CPU_Unpickler(pickle.Unpickler):
-    """
-    A custom unpickler that remaps storage locations to 'cpu' during deserialization.
-    This resolves the "Attempting to deserialize object on a CUDA device" error 
-    when loading a pickled PyTorch model.
-    """
-    def find_class(self, module, name):
-        if module == 'torch.storage' and name == '_load_from_local_legacy_format':
-            # PyTorch's internal loading function is intercepted here 
-            return lambda *args: torch.load(*args, map_location='cpu')
-        else:
-            return super().find_class(module, name)
-
 def download_model(file_path: str, gdrive_id: str):
     if os.path.exists(file_path):
         return  # already cached
@@ -79,37 +64,37 @@ def download_model(file_path: str, gdrive_id: str):
 # --- 3. Model Loading (Cached) ---
 @st.cache_resource
 def load_full_pipeline():
-    """Loads all models and initializes the pipeline class."""
-    # downloads only once
     download_model(RF_MODEL_PATH, RF_MODEL_GDRIVE_ID)
     download_model(BERT_WEIGHTS_PATH, BERT_MODEL_GDRIVE_ID)
 
-    if not os.path.exists(RF_MODEL_PATH) or not os.path.exists(TFIDF_VECTORIZER_PATH) or not os.path.exists(BERT_WEIGHTS_PATH):
-        st.error(f"FATAL ERROR: One or more model files not found in '{MODEL_DIR}'.")
-        st.info(f"Check file paths: RF={os.path.exists(RF_MODEL_PATH)}, TFIDF={os.path.exists(TFIDF_VECTORIZER_PATH)}, BERT={os.path.exists(BERT_WEIGHTS_PATH)}")
+    missing = {
+        "RF": os.path.exists(RF_MODEL_PATH),
+        "TFIDF": os.path.exists(TFIDF_VECTORIZER_PATH),
+        "BERT": os.path.exists(BERT_WEIGHTS_PATH)
+    }
+
+    if not all(missing.values()):
+        st.error(f"FATAL ERROR: Missing models: {missing}")
         st.stop()
-        
+
     try:
         pipeline = TwoStageModelPipeline(
             rf_model_path=RF_MODEL_PATH,
             tfidf_path=TFIDF_VECTORIZER_PATH,
-            bert_model_path=BERT_BASE_NAME, 
-            label_map=LABEL_NAME_MAP 
+            bert_model_path=BERT_BASE_NAME,
+            label_map=LABEL_NAME_MAP
         )
 
-        device = pipeline.device
-        
-        with open(BERT_WEIGHTS_PATH, "rb") as f:
-            loaded_bert_model = CPU_Unpickler(f).load() 
-            
-        pipeline.bert_model = loaded_bert_model
+        pipeline.bert_model = torch.load(
+            BERT_WEIGHTS_PATH,
+            map_location=torch.device("cpu")
+        )
         pipeline.bert_model.eval()
-        
+
         return pipeline
 
     except Exception as e:
-        # If this fails, the error is likely the RF dtype mismatch (NumPy version)
-        st.error(f"Error loading models or initializing pipeline. Final Error: {e}")
+        st.error(f"Model loading failed: {e}")
         st.stop()
 
 try:
@@ -312,7 +297,6 @@ st.markdown("""
 
 # --- Prediction Button ---
 st.button("Proses Kalimat", type="primary", on_click=classify_text)
-
 st.markdown("---")
 
 # --- Result Display Logic ---
